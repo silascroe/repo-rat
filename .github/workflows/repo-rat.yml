@@ -1,8 +1,7 @@
 name: Repo Rat
 
 on:
-  schedule:
-    - cron: "17 * * * *"
+  # Automatic polling is paused; run manually with workflow_dispatch.
   workflow_dispatch:
     inputs:
       backfill:
