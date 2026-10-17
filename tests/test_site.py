@@ -104,11 +104,11 @@ class RepoRatSiteTests(unittest.TestCase):
 
     def test_footer_uses_canonical_github_links(self):
         expected = {
-            "https://github.com/ClankClub/repo-rat",
-            "https://github.com/ClankClub/repo-rat/issues",
-            "https://github.com/ClankClub/repo-rat/blob/main/LICENSE",
-            "https://github.com/ClankClub/repo-rat/blob/main/README.md",
-            "https://github.com/ClankClub/repo-rat/blob/main/docs/architecture.md",
+            "https://github.com/silascroe/repo-rat",
+            "https://github.com/silascroe/repo-rat/issues",
+            "https://github.com/silascroe/repo-rat/blob/main/LICENSE",
+            "https://github.com/silascroe/repo-rat/blob/main/README.md",
+            "https://github.com/silascroe/repo-rat/blob/main/docs/architecture.md",
         }
         self.assertTrue(expected <= set(self.page.hrefs))
 

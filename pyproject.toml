@@ -27,8 +27,8 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Repository = "https://github.com/ClankClub/repo-rat"
-Issues = "https://github.com/ClankClub/repo-rat/issues"
+Repository = "https://github.com/silascroe/repo-rat"
+Issues = "https://github.com/silascroe/repo-rat/issues"
 
 [project.scripts]
 repo-rat = "repo_rat.cli:main"
