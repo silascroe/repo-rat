@@ -1,3 +1,4 @@
+import http.client
 import json
 import unittest
 from urllib.error import HTTPError
@@ -189,6 +190,101 @@ class GitHubClientTests(unittest.TestCase):
 
         with self.assertRaisesRegex(GitHubError, "invalid JSON"):
             GitHubClient(opener=opener).fetch_releases("acme/tool", False)
+
+
+class TruncatedResponse(FakeResponse):
+    """A response whose body is cut off mid-read, like the Oct 14 poll failure."""
+
+    def __init__(self):
+        super().__init__(None)
+
+    def read(self):
+        raise http.client.IncompleteRead(b'[{"id": 1', 4096)
+
+
+def release_page(*tags):
+    return json_response(
+        [{"id": index, "tag_name": tag, "html_url": f"https://example.test/{tag}"}
+         for index, tag in enumerate(tags, start=1)]
+    )
+
+
+class TransientFailureTests(unittest.TestCase):
+    def setUp(self):
+        self.sleeps = []
+
+    def client(self, opener, token=None):
+        return GitHubClient(token=token, opener=opener, sleep=self.sleeps.append)
+
+    def test_incomplete_read_is_retried_and_recovers(self):
+        opener = FakeOpener([TruncatedResponse(), release_page("v1.0.0")])
+
+        releases = self.client(opener).fetch_releases("acme/tool", False)
+
+        self.assertEqual([release.tag_name for release in releases], ["v1.0.0"])
+        self.assertEqual(len(opener.requests), 2)
+        self.assertEqual(self.sleeps, [1.0])
+
+    def test_persistent_incomplete_read_becomes_github_error(self):
+        opener = FakeOpener([TruncatedResponse() for _ in range(3)])
+
+        with self.assertRaises(GitHubError) as raised:
+            self.client(opener, token="secret-token").fetch_releases("acme/tool", False)
+
+        self.assertIn("IncompleteRead", str(raised.exception))
+        self.assertNotIn("secret-token", str(raised.exception))
+        self.assertEqual(len(opener.requests), 3)
+        self.assertEqual(self.sleeps, [1.0, 2.0])
+
+    def test_remote_disconnect_is_retried(self):
+        opener = FakeOpener(
+            [http.client.RemoteDisconnected("closed"), release_page("v2.0.0")]
+        )
+
+        releases = self.client(opener).fetch_releases("acme/tool", False)
+
+        self.assertEqual([release.tag_name for release in releases], ["v2.0.0"])
+        self.assertEqual(len(opener.requests), 2)
+
+    def test_gateway_errors_are_retried(self):
+        opener = FakeOpener(
+            [
+                HTTPError("https://api.github.com", 503, "Unavailable", None, None),
+                release_page("v3.0.0"),
+            ]
+        )
+
+        releases = self.client(opener).fetch_releases("acme/tool", False)
+
+        self.assertEqual([release.tag_name for release in releases], ["v3.0.0"])
+        self.assertEqual(self.sleeps, [1.0])
+
+    def test_client_errors_are_not_retried(self):
+        opener = FakeOpener(
+            [HTTPError("https://api.github.com", 404, "Not Found", None, None)]
+        )
+
+        with self.assertRaisesRegex(GitHubError, "HTTP 404"):
+            self.client(opener).fetch_releases("acme/tool", False)
+
+        self.assertEqual(len(opener.requests), 1)
+        self.assertEqual(self.sleeps, [])
+
+    def test_retry_resumes_on_the_failing_page_only(self):
+        full_page = [
+            {"id": index, "tag_name": f"v{index}", "html_url": f"https://example.test/{index}"}
+            for index in range(100)
+        ]
+        opener = FakeOpener(
+            [json_response(full_page), TruncatedResponse(), release_page("v-last")]
+        )
+
+        releases = self.client(opener).fetch_releases("acme/tool", False)
+
+        self.assertEqual(len(releases), 101)
+        self.assertIn("page=1", opener.requests[0].full_url)
+        self.assertIn("page=2", opener.requests[1].full_url)
+        self.assertIn("page=2", opener.requests[2].full_url)
 
 
 if __name__ == "__main__":

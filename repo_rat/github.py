@@ -1,7 +1,9 @@
 """GitHub REST API release ingestion."""
 
+import http.client
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -20,6 +22,12 @@ _API_URL = "https://api.github.com"
 _API_VERSION = "2022-11-28"
 _PAGE_SIZE = 100
 _HTTP_TIMEOUT_SECONDS = 30
+# Transient failures (truncated bodies, dropped connections, gateway errors)
+# get a few quick retries. Timeouts are deliberately not retried: each one
+# already costs _HTTP_TIMEOUT_SECONDS.
+_MAX_ATTEMPTS = 3
+_RETRY_BACKOFF_SECONDS = (1.0, 2.0)
+_RETRYABLE_HTTP_STATUSES = frozenset({502, 503, 504})
 
 
 class GitHubClient:
@@ -27,9 +35,11 @@ class GitHubClient:
         self,
         token: str | None = None,
         opener: Callable[..., Any] = urllib.request.urlopen,
+        sleep: Callable[[float], None] = time.sleep,
     ):
         self._token = token
         self._opener = opener
+        self._sleep = sleep
 
     def fetch_releases(
         self, repository: str, include_prereleases: bool
@@ -110,21 +120,50 @@ class GitHubClient:
         if self._token:
             request.add_header("Authorization", f"Bearer {self._token}")
 
-        try:
-            with self._opener(request, timeout=_HTTP_TIMEOUT_SECONDS) as response:
-                raw_body = response.read()
-        except urllib.error.HTTPError as exc:
-            message = f"GitHub request failed with HTTP {exc.code}: {exc.reason}"
-            raise GitHubError(self._safe_message(message)) from exc
-        except urllib.error.URLError as exc:
-            raise GitHubError(self._safe_message(f"GitHub request failed: {exc.reason}")) from exc
-        except OSError as exc:
-            raise GitHubError(self._safe_message(f"GitHub request failed: {exc}")) from exc
+        raw_body = self._read_with_retries(request)
 
         try:
             return json.loads(raw_body)
         except (UnicodeDecodeError, json.JSONDecodeError, TypeError) as exc:
             raise GitHubError(f"GitHub returned invalid JSON: {exc}") from exc
+
+    def _read_with_retries(self, request: urllib.request.Request) -> bytes:
+        for attempt in range(1, _MAX_ATTEMPTS + 1):
+            try:
+                with self._opener(request, timeout=_HTTP_TIMEOUT_SECONDS) as response:
+                    return response.read()
+            except urllib.error.HTTPError as exc:
+                error = GitHubError(
+                    self._safe_message(
+                        f"GitHub request failed with HTTP {exc.code}: {exc.reason}"
+                    )
+                )
+                retryable = exc.code in _RETRYABLE_HTTP_STATUSES
+                cause: BaseException = exc
+            except urllib.error.URLError as exc:
+                error = GitHubError(self._safe_message(f"GitHub request failed: {exc.reason}"))
+                retryable = isinstance(exc.reason, ConnectionResetError)
+                cause = exc
+            except http.client.HTTPException as exc:
+                # IncompleteRead, RemoteDisconnected and friends: the server
+                # hung up mid-response. Worth another try.
+                error = GitHubError(
+                    self._safe_message(
+                        f"GitHub response was interrupted ({type(exc).__name__})"
+                    )
+                )
+                retryable = True
+                cause = exc
+            except OSError as exc:
+                error = GitHubError(self._safe_message(f"GitHub request failed: {exc}"))
+                retryable = isinstance(exc, ConnectionResetError)
+                cause = exc
+
+            if not retryable or attempt == _MAX_ATTEMPTS:
+                raise error from cause
+            self._sleep(_RETRY_BACKOFF_SECONDS[attempt - 1])
+
+        raise AssertionError("unreachable")
 
     def _safe_message(self, message: str) -> str:
         return message.replace(self._token, "[REDACTED]") if self._token else message
