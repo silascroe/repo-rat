@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ClankClub/repo-rat/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ClankClub/repo-rat/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
+  <a href="https://github.com/silascroe/repo-rat/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/silascroe/repo-rat/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/runtime%20dependencies-0-2ea043?style=flat-square" alt="Zero runtime dependencies">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8b949e?style=flat-square" alt="MIT license"></a>
@@ -34,7 +34,7 @@ Clone it, put a few `owner/name` repositories in `config.json`, optionally set a
 public GitHub user's starred-repository source, and run one poll:
 
 ~~~bash
-git clone https://github.com/ClankClub/repo-rat.git
+git clone https://github.com/silascroe/repo-rat.git
 cd repo-rat
 
 # edit config.json, then:
@@ -147,12 +147,30 @@ The environment-variable names themselves are configurable.
 
 ## GitHub Actions
 
-The repository includes an hourly workflow at
-`.github/workflows/repo-rat.yml`. It runs one normal poll, persists
-`state.db` back to the repository, and supports a manual `workflow_dispatch`
-run with optional backfill. Add `DISCORD_WEBHOOK_URL` as an Actions secret to
+The repository includes a workflow at `.github/workflows/repo-rat.yml`. It
+runs one normal poll and commits `state.db` back to the repository so the next
+run keeps its baseline. Add `DISCORD_WEBHOOK_URL` as an Actions secret to
 enable Discord delivery. `OPENAI_API_KEY` is optional; without it, the
 deterministic judge still works.
+
+**Scheduled polling is currently paused.** The workflow only runs when you
+start it yourself (Actions → Repo Rat → Run workflow), with an optional
+backfill toggle. To poll on a schedule in your own fork, add a `schedule`
+trigger next to the existing `workflow_dispatch` one:
+
+~~~yaml
+on:
+  schedule:
+    - cron: "17 * * * *"   # hourly, off the top of the hour
+  workflow_dispatch:
+    # existing inputs stay as they are
+~~~
+
+> **Known limitation on Actions:** the JSONL fallback lives on a throwaway
+> runner. If Discord rejects a report during an Actions run, the report is
+> written to a file that disappears when the job ends, and the release is
+> still marked as delivered. Locally the fallback file persists as intended.
+> A fix is planned.
 
 The tracked `config.json` intentionally monitors nobody by default. To use
 the starred-repositories source in GitHub Actions, add the repository Actions
@@ -160,7 +178,7 @@ variable `REPO_RAT_STARRED_USERNAME` with your GitHub username. It is not a
 secret; the workflow writes it into a temporary runner-only config file. For
 local use, set `starred_username` in your own `config.json` directly.
 
-`state.db` is deliberately committed so scheduled runs retain their baseline.
+`state.db` is deliberately committed so Actions runs retain their baseline.
 It contains public release metadata, not credentials. Forks and downloaded
 archives include that snapshot; delete `state.db` if you want a completely
 fresh local baseline.

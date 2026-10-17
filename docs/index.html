@@ -11,13 +11,13 @@
     <a class="skip-link" href="#main-content">Skip to content</a>
     <header class="site-header">
       <div class="page-shell header-inner">
-        <a class="brand" href="https://github.com/ClankClub/repo-rat" aria-label="Repo Rat on GitHub">
+        <a class="brand" href="https://github.com/silascroe/repo-rat" aria-label="Repo Rat on GitHub">
           <img src="assets/repo-rat-banner.svg" alt="Repo Rat — GitHub releases in. Signal out.">
         </a>
         <nav aria-label="Main navigation">
           <a href="#how-it-works">How it works</a>
           <a href="#setup">Setup</a>
-          <a class="nav-github" href="https://github.com/ClankClub/repo-rat">GitHub</a>
+          <a class="nav-github" href="https://github.com/silascroe/repo-rat">GitHub</a>
         </nav>
       </div>
     </header>
@@ -30,7 +30,7 @@
         <p class="model-note"><strong>No API key required.</strong> Repo Rat's deterministic heuristic judge works out of the box. An OpenAI-compatible model is optional.</p>
         <div class="hero-actions">
           <a class="button" href="#setup">Set up Repo Rat <span aria-hidden="true">↓</span></a>
-          <a class="text-link" href="https://github.com/ClankClub/repo-rat/blob/main/README.md">Read the README</a>
+          <a class="text-link" href="https://github.com/silascroe/repo-rat/blob/main/README.md">Read the README</a>
         </div>
       </section>
 
@@ -58,7 +58,7 @@ https://github.com/acme/tool/releases/tag/v2.4.0</code></pre>
           <figure class="pipeline-figure">
             <img src="assets/pipeline.svg" alt="GitHub releases flow through SQLite state and a significance judge, then to Discord or a local JSONL log.">
           </figure>
-          <p class="detail-link"><a href="https://github.com/ClankClub/repo-rat/blob/main/docs/architecture.md">See the architecture and state lifecycle</a></p>
+          <p class="detail-link"><a href="https://github.com/silascroe/repo-rat/blob/main/docs/architecture.md">See the architecture and state lifecycle</a></p>
         </section>
       </div>
 
@@ -73,9 +73,9 @@ https://github.com/acme/tool/releases/tag/v2.4.0</code></pre>
             <li><strong>Fork this repository</strong><span>Keep the workflow and config in your own copy.</span></li>
             <li><strong>Add a webhook secret</strong><span>In your fork, add <code>DISCORD_WEBHOOK_URL</code> under Settings → Secrets and variables → Actions → Secrets.</span></li>
             <li><strong>Choose a watchlist</strong><span>Optionally set <code>REPO_RAT_STARRED_USERNAME</code> as an Actions variable to include that account's public starred repositories. The config file can also list repositories explicitly.</span></li>
-            <li><strong>Enable Actions</strong><span>Run the normal poll; the first normal poll quietly seeds the baseline.</span></li>
+            <li><strong>Enable Actions</strong><span>Run the workflow from the Actions tab; the first normal poll quietly seeds the baseline. Scheduled polling is off by default, so add a schedule trigger if you want it to run on its own.</span></li>
           </ol>
-          <p class="setup-readme"><a href="#backfill-warning">Read the backfill warning</a> · <a href="https://github.com/ClankClub/repo-rat/blob/main/README.md">Read the full setup guide, including local installation</a></p>
+          <p class="setup-readme"><a href="#backfill-warning">Read the backfill warning</a> · <a href="https://github.com/silascroe/repo-rat/blob/main/README.md">Read the full setup guide, including local installation</a></p>
         </div>
       </section>
 
@@ -94,7 +94,7 @@ https://github.com/acme/tool/releases/tag/v2.4.0</code></pre>
         <p class="eyebrow">Open source. Your workflow.</p>
         <h2 id="transparency-title">Know what it keeps.</h2>
         <p>Repo Rat reads public release information and, if you opt in, a user's public starred repositories. Its checked-in SQLite state contains public release metadata and judgments, not webhook or API credentials. <code>OPENAI_API_KEY</code> is optional; without it, the heuristic judge still works.</p>
-        <p><a href="https://github.com/ClankClub/repo-rat/blob/main/docs/architecture.md">Explore the architecture and data flow</a></p>
+        <p><a href="https://github.com/silascroe/repo-rat/blob/main/docs/architecture.md">Explore the architecture and data flow</a></p>
       </section>
     </main>
 
@@ -102,11 +102,11 @@ https://github.com/acme/tool/releases/tag/v2.4.0</code></pre>
       <div class="page-shell footer-inner">
         <p>Built to keep an eye on public releases with your workflow.</p>
         <nav aria-label="Project links" class="footer-links">
-          <a href="https://github.com/ClankClub/repo-rat">Source</a>
-          <a href="https://github.com/ClankClub/repo-rat/issues">Issues</a>
-          <a href="https://github.com/ClankClub/repo-rat/blob/main/LICENSE">License</a>
-          <a href="https://github.com/ClankClub/repo-rat/blob/main/README.md">README</a>
-          <a href="https://github.com/ClankClub/repo-rat/blob/main/docs/architecture.md">Architecture</a>
+          <a href="https://github.com/silascroe/repo-rat">Source</a>
+          <a href="https://github.com/silascroe/repo-rat/issues">Issues</a>
+          <a href="https://github.com/silascroe/repo-rat/blob/main/LICENSE">License</a>
+          <a href="https://github.com/silascroe/repo-rat/blob/main/README.md">README</a>
+          <a href="https://github.com/silascroe/repo-rat/blob/main/docs/architecture.md">Architecture</a>
         </nav>
       </div>
     </footer>
