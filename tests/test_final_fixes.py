@@ -10,7 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
-from repo_rat.delivery import DeliveryRouter
+from repo_rat.delivery import DeliveryError, DeliveryRouter
 from repo_rat.github import GitHubClient, GitHubError
 from repo_rat.judgment import (
     FallbackJudge, HeuristicJudge, JudgmentError, OpenAICompatibleJudge,
@@ -221,18 +221,18 @@ class HTTPAndModelRegressions(unittest.TestCase):
         result = FallbackJudge(primary, HeuristicJudge()).judge(make_release(body="Security fix."))
         self.assertEqual(result.summary, "Security fix.")
 
-    def test_discord_passes_finite_timeout_and_writes_one_fallback(self):
+    def test_discord_passes_finite_timeout_and_raises_sanitized_error(self):
         seen = []
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "log.jsonl"
-            result = DeliveryRouter(
-                "https://discord.test/secret", path, self.timeout_transport(seen)
-            ).deliver(make_release(), APPROVED)
-            records = path.read_text().splitlines()
+            with self.assertRaises(DeliveryError) as error:
+                DeliveryRouter(
+                    "https://discord.test/secret", path, self.timeout_transport(seen)
+                ).deliver(make_release(), APPROVED)
+            self.assertFalse(path.exists())
         self.assert_finite_timeout(seen)
-        self.assertEqual(result.channel, "local-fallback")
-        self.assertEqual(len(records), 1)
-        self.assertNotIn("sensitive-api-key", records[0] + result.detail)
+        formatted = "".join(traceback.format_exception(error.exception))
+        self.assertNotIn("discord.test/secret", formatted)
 
     @mock.patch.dict("os.environ", {"TEST_LLM_API_KEY": "test-key"}, clear=True)
     def test_default_model_request_omits_unsupported_temperature(self):

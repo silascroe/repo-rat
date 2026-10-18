@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from .config import AppConfig
-from .delivery import DeliveryRouter
+from .delivery import DeliveryError, DeliveryRouter
 from .github import GitHubClient, GitHubError
 from .judgment import Judge, JudgmentError
 from .models import Judgment, Release
@@ -139,8 +139,15 @@ class RepoRat:
                             repository, stored_release.release_id
                         )
                         counts["errors"] += 1
+                        # DeliveryError text is already sanitized; anything else
+                        # could carry the webhook URL, so report only its type.
+                        detail = (
+                            str(exc)
+                            if isinstance(exc, DeliveryError)
+                            else type(exc).__name__
+                        )
                         errors.append(
-                            f"{stored_release.identity}: delivery failed ({type(exc).__name__})"
+                            f"{stored_release.identity}: delivery failed ({detail})"
                         )
                         continue
                     counts["reported"] += 1

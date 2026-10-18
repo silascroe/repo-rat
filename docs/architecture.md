@@ -42,7 +42,7 @@ There is one unavoidable edge case: if Discord accepts a webhook and the process
 
 - GitHub failures are isolated per repository.
 - Model failures fall back to deterministic heuristics.
-- Discord failures fall back to the local JSONL log.
+- A failed Discord post leaves the release undelivered; the next poll retries it without judging it again.
 - Existing undelivered interesting releases are retried without being re-judged.
 - State writes are transactional and survive process restarts.
 

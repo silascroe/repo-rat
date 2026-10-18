@@ -52,6 +52,16 @@ jobs:
           if starred_username:
               config["starred_username"] = starred_username
 
+          # Repo Rat resolves relative paths against the config file's folder.
+          # This config lives in $RUNNER_TEMP, so pin runtime files to the
+          # checkout; otherwise state.db is created in a throwaway folder and
+          # the persist step below never sees it.
+          for field, default in (
+              ("state_path", "state.db"),
+              ("local_log_path", "release-log.jsonl"),
+          ):
+              config[field] = os.path.abspath(config.get(field, default))
+
           with open(sys.argv[1], "w", encoding="utf-8") as destination:
               json.dump(config, destination, indent=2)
               destination.write("\n")

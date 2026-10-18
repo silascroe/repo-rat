@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from repo_rat.delivery import DeliveryRouter
+from repo_rat.delivery import DeliveryError, DeliveryRouter
 from repo_rat.models import Judgment
 from repo_rat.state import StoredRelease
 
@@ -119,33 +119,34 @@ class DeliveryTests(unittest.TestCase):
         self.assertLess(len(content), 2_000)
         self.assertIn(self.release.html_url, content)
 
-    def test_failed_discord_post_falls_back_to_local_once(self):
+    def test_failed_discord_post_raises_without_marking_it_delivered(self):
         router = DeliveryRouter(
             webhook_url="https://discord.test/webhook/secret-token",
             log_path=self.log_path,
             opener=FailingOpener(),
         )
 
-        result = router.deliver(self.release, self.judgment)
+        with self.assertRaises(DeliveryError) as error:
+            router.deliver(self.release, self.judgment)
 
-        self.assertEqual(result.channel, "local-fallback")
-        self.assertEqual(len(self.log_path.read_text().splitlines()), 1)
-        self.assertNotIn("secret-token", result.detail)
-        record = json.loads(self.log_path.read_text())
-        self.assertEqual(record["delivery"], "local-fallback")
-        self.assertNotIn("secret-token", self.log_path.read_text())
+        # Nothing is written locally: the runner keeps the release pending and
+        # retries Discord next poll, instead of burying it in a log file.
+        self.assertFalse(self.log_path.exists())
+        self.assertNotIn("secret-token", str(error.exception))
+        self.assertIsNone(error.exception.__cause__)
+        self.assertTrue(error.exception.__suppress_context__)
 
-    def test_non_2xx_webhook_response_falls_back(self):
+    def test_non_2xx_webhook_response_raises(self):
         router = DeliveryRouter(
             webhook_url="https://discord.test/webhook",
             log_path=self.log_path,
             opener=FakeOpener(status=500),
         )
 
-        result = router.deliver(self.release, self.judgment)
+        with self.assertRaisesRegex(DeliveryError, "HTTP 500"):
+            router.deliver(self.release, self.judgment)
 
-        self.assertEqual(result.channel, "local-fallback")
-        self.assertEqual(len(self.log_path.read_text().splitlines()), 1)
+        self.assertFalse(self.log_path.exists())
 
 
 if __name__ == "__main__":

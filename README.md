@@ -125,7 +125,7 @@ The checked-in `config.json` shows every available setting. The useful knobs are
 | `include_prereleases` | `false` | Include prereleases in addition to stable releases. |
 | `bootstrap_mode` | `"seed"` | Establish the first-run baseline without notifying old releases. |
 | `state_path` | `state.db` | SQLite state database. |
-| `local_log_path` | `release-log.jsonl` | Local fallback / no-webhook output. |
+| `local_log_path` | `release-log.jsonl` | Report output when no Discord webhook is configured. |
 | `llm.enabled` | `true` | Allow model-assisted judgments when credentials exist. |
 
 Secrets never belong in `config.json`. They are read from environment variables:
@@ -166,12 +166,6 @@ on:
     # existing inputs stay as they are
 ~~~
 
-> **Known limitation on Actions:** the JSONL fallback lives on a throwaway
-> runner. If Discord rejects a report during an Actions run, the report is
-> written to a file that disappears when the job ends, and the release is
-> still marked as delivered. Locally the fallback file persists as intended.
-> A fix is planned.
-
 The tracked `config.json` intentionally monitors nobody by default. To use
 the starred-repositories source in GitHub Actions, add the repository Actions
 variable `REPO_RAT_STARRED_USERNAME` with your GitHub username. It is not a
@@ -207,7 +201,7 @@ Repo Rat is small, but it takes state seriously:
 - Failed judgments remain retryable.
 - A failure in one repository does not prevent the others from being checked.
 - A SQLite-backed poll lock prevents overlapping local invocations from double-processing work.
-- Discord failures fall back to the local JSONL log.
+- A failed Discord post leaves the release undelivered; the next poll retries it without judging it again.
 - State writes are transactional and survive restarts.
 
 There is one unavoidable exactly-once caveat: if Discord accepts a report and the process dies before the local delivery marker is committed, recovery can send that report again. A client cannot make an external webhook transaction atomic by sheer force of personality.

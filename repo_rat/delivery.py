@@ -24,7 +24,7 @@ class DeliveryResult:
 
 
 class DeliveryRouter:
-    """Route one release judgment to Discord, with a local fallback."""
+    """Route one release judgment to Discord, or to the local log without a webhook."""
 
     def __init__(
         self,
@@ -41,27 +41,19 @@ class DeliveryRouter:
             self._write_local(release, judgment, "local")
             return DeliveryResult(channel="local", detail="written to local log")
 
+        # A failed post raises so the release stays undelivered and is retried
+        # on the next poll. Writing it to the local log instead would mark it
+        # delivered, and on a throwaway runner that log is gone after the job.
         try:
             self._post_discord(release, judgment)
-            return DeliveryResult(channel="discord", detail="posted to Discord")
         except _DiscordStatusError as exc:
-            self._write_local(release, judgment, "local-fallback")
-            return DeliveryResult(
-                channel="local-fallback",
-                detail=f"Discord returned HTTP {exc.status}; written to local log",
-            )
+            raise DeliveryError(f"Discord returned HTTP {exc.status}") from None
         except urllib.error.HTTPError as exc:
-            self._write_local(release, judgment, "local-fallback")
-            return DeliveryResult(
-                channel="local-fallback",
-                detail=f"Discord returned HTTP {exc.code}; written to local log",
-            )
+            raise DeliveryError(f"Discord returned HTTP {exc.code}") from None
         except Exception as exc:
-            self._write_local(release, judgment, "local-fallback")
-            return DeliveryResult(
-                channel="local-fallback",
-                detail=f"Discord delivery failed ({type(exc).__name__}); written to local log",
-            )
+            # Never chain the original: it can carry the webhook URL (a secret).
+            raise DeliveryError(f"Discord delivery failed ({type(exc).__name__})") from None
+        return DeliveryResult(channel="discord", detail="posted to Discord")
 
     def _post_discord(self, release: StoredRelease, judgment: Judgment) -> None:
         payload = {"content": self._discord_content(release, judgment)}
@@ -110,6 +102,10 @@ class DeliveryRouter:
         with self._log_path.open("a", encoding="utf-8") as log:
             json.dump(record, log, ensure_ascii=False)
             log.write("\n")
+
+
+class DeliveryError(RuntimeError):
+    """Raised when a configured webhook could not accept a report."""
 
 
 class _DiscordStatusError(RuntimeError):
