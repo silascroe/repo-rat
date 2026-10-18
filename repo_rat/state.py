@@ -194,6 +194,13 @@ class StateStore:
         ).fetchall()
         return [self._stored_release(row) for row in rows]
 
+    def release_ids(self, repository: str) -> frozenset[str]:
+        """Return the IDs of every stored release, without loading bodies."""
+        rows = self.connection.execute(
+            "SELECT release_id FROM releases WHERE repository = ?", (repository,)
+        ).fetchall()
+        return frozenset(row["release_id"] for row in rows)
+
     def get_releases(self, repository: str) -> list[StoredRelease]:
         rows = self.connection.execute(
             "SELECT * FROM releases WHERE repository = ? ORDER BY published_at IS NOT NULL, published_at ASC",

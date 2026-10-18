@@ -79,13 +79,18 @@ class RepoRat:
                             repositories.append(repository)
 
             for repository in repositories:
+                known_ids = self._state.release_ids(repository)
                 had_state = bool(
-                    self._state.get_releases(repository)
-                    or self._state.is_repository_initialized(repository)
+                    known_ids or self._state.is_repository_initialized(repository)
                 )
+                # Once a repository has a baseline, a normal poll only needs
+                # what is newer than it. Seeding and backfill read everything.
+                incremental = mode == "normal" and had_state
                 try:
                     releases = self._github.fetch_releases(
-                        repository, self._config.include_prereleases
+                        repository,
+                        self._config.include_prereleases,
+                        known_release_ids=known_ids if incremental else None,
                     )
                 except GitHubError as exc:
                     counts["errors"] += 1

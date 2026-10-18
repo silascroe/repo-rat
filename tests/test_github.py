@@ -287,5 +287,71 @@ class TransientFailureTests(unittest.TestCase):
         self.assertIn("page=2", opener.requests[2].full_url)
 
 
+def numbered_releases(ids):
+    return [
+        {"id": release_id, "tag_name": f"v{release_id}", "html_url": f"https://example.test/{release_id}"}
+        for release_id in ids
+    ]
+
+
+class IncrementalFetchTests(unittest.TestCase):
+    def test_stops_after_the_first_page_with_a_known_release(self):
+        # Newest first: two new releases, then history we already stored.
+        opener = FakeOpener([json_response(numbered_releases(range(120, 100, -1)))])
+
+        releases = GitHubClient(opener=opener).fetch_releases(
+            "acme/tool", False, known_release_ids={"118", "117"}
+        )
+
+        self.assertEqual(len(opener.requests), 1)
+        self.assertIn("per_page=20&page=1", opener.requests[0].full_url)
+        # The whole page is returned; storage ignores releases it already has.
+        self.assertEqual(len(releases), 20)
+
+    def test_keeps_paging_while_every_release_is_new(self):
+        opener = FakeOpener(
+            [
+                json_response(numbered_releases(range(140, 120, -1))),
+                json_response(numbered_releases(range(120, 100, -1))),
+            ]
+        )
+
+        releases = GitHubClient(opener=opener).fetch_releases(
+            "acme/tool", False, known_release_ids={"105"}
+        )
+
+        self.assertEqual(len(opener.requests), 2)
+        self.assertIn("per_page=20&page=2", opener.requests[1].full_url)
+        self.assertEqual(len(releases), 40)
+
+    def test_known_prerelease_still_stops_paging_when_filtered_out(self):
+        page = numbered_releases(range(120, 100, -1))
+        page[1]["prerelease"] = True  # id 119, stored while prereleases were on
+        opener = FakeOpener([json_response(page)])
+
+        releases = GitHubClient(opener=opener).fetch_releases(
+            "acme/tool", False, known_release_ids={"119"}
+        )
+
+        self.assertEqual(len(opener.requests), 1)
+        self.assertNotIn("119", {release.release_id for release in releases})
+
+    def test_empty_known_set_reads_full_history(self):
+        opener = FakeOpener(
+            [
+                json_response(numbered_releases(range(200, 100, -1))),
+                json_response(numbered_releases(range(100, 95, -1))),
+            ]
+        )
+
+        releases = GitHubClient(opener=opener).fetch_releases(
+            "acme/tool", False, known_release_ids=frozenset()
+        )
+
+        self.assertEqual(len(opener.requests), 2)
+        self.assertIn("per_page=100", opener.requests[0].full_url)
+        self.assertEqual(len(releases), 105)
+
+
 if __name__ == "__main__":
     unittest.main()

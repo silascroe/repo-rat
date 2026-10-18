@@ -18,7 +18,7 @@ class SequencedGitHub:
         self._responses = iter(responses)
         self.calls = []
 
-    def fetch_releases(self, repository, include_prereleases):
+    def fetch_releases(self, repository, include_prereleases, known_release_ids=None):
         self.calls.append((repository, include_prereleases))
         return next(self._responses)
 

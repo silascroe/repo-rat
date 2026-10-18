@@ -53,10 +53,12 @@ class FakeGitHub:
         self.public_starred = []
         self.starred_calls = []
         self.release_calls = []
+        self.known_ids_by_call = []
         self.starred_error = None
 
-    def fetch_releases(self, repository, include_prereleases):
+    def fetch_releases(self, repository, include_prereleases, known_release_ids=None):
         self.release_calls.append(repository)
+        self.known_ids_by_call.append(known_release_ids)
         result = self.releases_by_repository[repository]
         if isinstance(result, Exception):
             raise result
@@ -196,6 +198,18 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(self.github.release_calls, ["acme/tool"])
         self.assertEqual(summary.errors, 1)
         self.assertEqual(summary.repository_errors, 1)
+
+    def test_only_normal_polls_after_the_baseline_fetch_incrementally(self):
+        self.judge.judgments["1"] = Judgment(False, "Routine", "maintenance")
+        rat = self.make_rat([make_release(release_id="1")])
+
+        rat.poll("normal")  # seeding reads the full history
+        rat.poll("normal")  # later polls stop at what is already stored
+        rat.poll("backfill")  # backfill reads everything again
+
+        self.assertEqual(
+            self.github.known_ids_by_call, [None, frozenset({"1"}), None]
+        )
 
     def test_new_release_is_reported_once_across_two_polls(self):
         release = make_release(release_id="2", body="Breaking change")

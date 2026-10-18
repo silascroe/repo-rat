@@ -21,6 +21,9 @@ _USERNAME = re.compile(r"^[A-Za-z0-9-]+$")
 _API_URL = "https://api.github.com"
 _API_VERSION = "2022-11-28"
 _PAGE_SIZE = 100
+# Incremental polls usually find zero or a few new releases, and release
+# bodies can be large, so they ask for small pages.
+_INCREMENTAL_PAGE_SIZE = 20
 _HTTP_TIMEOUT_SECONDS = 30
 # Transient failures (truncated bodies, dropped connections, gateway errors)
 # get a few quick retries. Timeouts are deliberately not retried: each one
@@ -42,28 +45,42 @@ class GitHubClient:
         self._sleep = sleep
 
     def fetch_releases(
-        self, repository: str, include_prereleases: bool
+        self,
+        repository: str,
+        include_prereleases: bool,
+        known_release_ids: set[str] | frozenset[str] | None = None,
     ) -> list[Release]:
+        """Fetch a repository's releases, newest first.
+
+        Without ``known_release_ids`` every page is fetched. With them, paging
+        stops after the first page that contains an already-known release:
+        GitHub lists releases newest first, so later pages hold only history
+        the caller has already seen.
+        """
         if not isinstance(repository, str) or not _REPOSITORY.fullmatch(repository):
             raise GitHubError(f"invalid repository: {repository!r}")
 
+        page_size = _INCREMENTAL_PAGE_SIZE if known_release_ids else _PAGE_SIZE
         releases = []
         page = 1
         while True:
-            payload = self._fetch_page(repository, page)
+            payload = self._fetch_page(repository, page, page_size)
             if not isinstance(payload, list):
                 raise GitHubError("GitHub releases response must be a JSON list")
 
+            reached_known = False
             for item in payload:
                 if not isinstance(item, dict):
                     continue
+                if known_release_ids and self._release_id(item) in known_release_ids:
+                    reached_known = True
                 if item.get("draft", False) or (
                     item.get("prerelease", False) and not include_prereleases
                 ):
                     continue
                 releases.append(self._to_release(repository, item))
 
-            if len(payload) < _PAGE_SIZE:
+            if reached_known or len(payload) < page_size:
                 break
             page += 1
 
@@ -100,8 +117,8 @@ class GitHubClient:
 
         return repositories
 
-    def _fetch_page(self, repository: str, page: int) -> Any:
-        url = f"{_API_URL}/repos/{repository}/releases?per_page={_PAGE_SIZE}&page={page}"
+    def _fetch_page(self, repository: str, page: int, page_size: int = _PAGE_SIZE) -> Any:
+        url = f"{_API_URL}/repos/{repository}/releases?per_page={page_size}&page={page}"
         return self._fetch_json(url)
 
     def _fetch_starred_page(self, username: str, page: int) -> Any:
@@ -169,17 +186,24 @@ class GitHubClient:
         return message.replace(self._token, "[REDACTED]") if self._token else message
 
     @staticmethod
-    def _to_release(repository: str, item: dict[str, Any]) -> Release:
+    def _release_id(item: dict[str, Any]) -> str:
+        release_id = item.get("id")
+        if release_id is None:
+            tag_name = item.get("tag_name") or ""
+            published_at = item.get("published_at")
+            html_url = item.get("html_url") or ""
+            release_id = f"{tag_name}|{published_at or ''}|{html_url}"
+        return str(release_id)
+
+    @classmethod
+    def _to_release(cls, repository: str, item: dict[str, Any]) -> Release:
         tag_name = item.get("tag_name") or ""
         published_at = item.get("published_at")
         html_url = item.get("html_url") or ""
-        release_id = item.get("id")
-        if release_id is None:
-            release_id = f"{tag_name}|{published_at or ''}|{html_url}"
 
         return Release(
             repository=repository,
-            release_id=str(release_id),
+            release_id=cls._release_id(item),
             tag_name=str(tag_name),
             name=str(item.get("name") or ""),
             body=str(item.get("body") or ""),

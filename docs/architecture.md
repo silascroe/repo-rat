@@ -9,7 +9,7 @@ The design rule is simple: **state and delivery should remain reliable even when
 ## Components
 
 - `repo_rat/config.py` loads and validates JSON configuration and environment-variable names.
-- `repo_rat/github.py` fetches releases and optional public starred-repository lists from GitHub using only the Python standard library, with optional token authentication and pagination.
+- `repo_rat/github.py` fetches releases and optional public starred-repository lists from GitHub using only the Python standard library, with optional token authentication and pagination. After a repository's baseline exists, normal polls page only until they reach an already-stored release; seeding and backfill read the full history.
 - `repo_rat/state.py` owns SQLite persistence, release lifecycle state, run history, delivery recovery, and the cross-process poll lock.
 - `repo_rat/judgment.py` provides an OpenAI-compatible JSON judge plus a deterministic heuristic fallback.
 - `repo_rat/delivery.py` posts compact Discord messages or appends structured JSON Lines locally.

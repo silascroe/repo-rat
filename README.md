@@ -185,7 +185,7 @@ The first successful **normal** poll for each repository records the releases al
 repo-rat --once
 ~~~
 
-After that baseline exists, normal polls process only newly discovered releases. If you explicitly want the seeded history:
+After that baseline exists, normal polls process only newly discovered releases, and they fetch only that far: paging stops at the first page (20 releases) that contains a release Repo Rat already knows. A quiet repository costs one small request per poll instead of its whole release history. If you explicitly want the seeded history:
 
 ~~~bash
 repo-rat --backfill
